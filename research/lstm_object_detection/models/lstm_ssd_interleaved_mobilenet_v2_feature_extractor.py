@@ -134,7 +134,7 @@ class LSTMSSDInterleavedMobilenetV2FeatureExtractor(
     scope_name = self._base_network_scope + '_2'
     with tf.variable_scope(scope_name, reuse=self._reuse_weights) as base_scope:
       if self._low_res:
-        size_small = preprocessed_inputs.get_shape().as_list()[1] / 2
+        size_small = preprocessed_inputs.get_shape()[1] // 2
         inputs_small = tf.image.resize_images(preprocessed_inputs,
                                               [size_small, size_small])
         # Create end point handle for tflite deployment.

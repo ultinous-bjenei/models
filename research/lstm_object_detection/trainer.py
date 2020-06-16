@@ -91,6 +91,7 @@ def get_inputs(input_queue, num_classes, merge_multiple_label_boxes=False):
     suffix = 0
 
     images = []
+    image_paths = []
     keys = []
     locations = []
     classes = []
@@ -99,6 +100,7 @@ def get_inputs(input_queue, num_classes, merge_multiple_label_boxes=False):
 
     while fields.InputDataFields.image + str(suffix) in read_data:
       image = read_data[fields.InputDataFields.image + str(suffix)]
+      image_path = read_data["image_path" + str(suffix)]
       key = ''
       if fields.InputDataFields.source_id in read_data:
         key = read_data[fields.InputDataFields.source_id + str(suffix)]
@@ -123,6 +125,7 @@ def get_inputs(input_queue, num_classes, merge_multiple_label_boxes=False):
       # Batch read input data and groundtruth. Images and locations, classes by
       # default should have the same number of items.
       images.append(image)
+      image_paths.append(image_path)
       keys.append(key)
       locations.append(location_gt)
       classes.append(classes_gt)
@@ -131,7 +134,7 @@ def get_inputs(input_queue, num_classes, merge_multiple_label_boxes=False):
 
       suffix += 1
 
-    return (images, keys, locations, classes, masks, keypoints)
+    return (images, image_paths, keys, locations, classes, masks, keypoints)
 
   return extract_images_and_targets(read_data_list)
 
@@ -146,7 +149,7 @@ def _create_losses(input_queue, create_model_fn, train_config):
   """
 
   detection_model = create_model_fn()
-  (images, _, groundtruth_boxes_list, groundtruth_classes_list,
+  (images, image_paths, _, groundtruth_boxes_list, groundtruth_classes_list,
    groundtruth_masks_list, groundtruth_keypoints_list) = get_inputs(
        input_queue, detection_model.num_classes,
        train_config.merge_multiple_label_boxes)
@@ -171,6 +174,13 @@ def _create_losses(input_queue, create_model_fn, train_config):
       groundtruth_keypoints_list)
   prediction_dict = detection_model.predict(images, true_image_shapes,
                                             input_queue['batch'])
+
+  # bjenei: tensorboard debug
+  for i in range(len(groundtruth_boxes_list)):
+      tf.summary.image("image{:02d}".format(i), tf.image.draw_bounding_boxes(
+        [images[i]], [groundtruth_boxes_list[i]]), 32)
+        # bjenei: 32 images when batch_size=8 and vid_length=4
+      tf.summary.text("path{:02d}".format(i), image_paths[i])
 
   losses_dict = detection_model.loss(prediction_dict, true_image_shapes)
   for loss_tensor in losses_dict.values():

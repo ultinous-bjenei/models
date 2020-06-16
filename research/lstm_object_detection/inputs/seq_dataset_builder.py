@@ -1,3 +1,4 @@
+ebug
 # Copyright 2018 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -54,6 +55,7 @@ def _build_training_batch_dict(batch_sequences_with_states, unroll_length,
   """
   seq_tensors_dict = {
       fields.InputDataFields.image: [],
+      "image_path": [],
       fields.InputDataFields.groundtruth_boxes: [],
       fields.InputDataFields.groundtruth_classes: [],
       'batch': batch_sequences_with_states,
@@ -71,12 +73,16 @@ def _build_training_batch_dict(batch_sequences_with_states, unroll_length,
           filtered_dict)
       seq_tensors_dict[fields.InputDataFields.image].append(
           batch_sequences_with_states.sequences['image'][j][i])
+      seq_tensors_dict["image_path"].append(
+          batch_sequences_with_states.sequences['image_path'][j][i])
       seq_tensors_dict[fields.InputDataFields.groundtruth_boxes].append(
           filtered_dict[fields.InputDataFields.groundtruth_boxes])
       seq_tensors_dict[fields.InputDataFields.groundtruth_classes].append(
           filtered_dict[fields.InputDataFields.groundtruth_classes])
   seq_tensors_dict[fields.InputDataFields.image] = tuple(
       seq_tensors_dict[fields.InputDataFields.image])
+  seq_tensors_dict["image_path"] = tuple(
+      seq_tensors_dict["image_path"])
   seq_tensors_dict[fields.InputDataFields.groundtruth_boxes] = tuple(
       seq_tensors_dict[fields.InputDataFields.groundtruth_boxes])
   seq_tensors_dict[fields.InputDataFields.groundtruth_classes] = tuple(
@@ -130,6 +136,8 @@ def build(input_reader_config,
   if not config.input_path:
     raise ValueError('At least one input path must be specified in '
                      '`input_reader_config`.')
+
+
   key, value = parallel_reader.parallel_read(
       config.input_path[:],  # Convert `RepeatedScalarContainer` to list.
       reader_class=reader_type_class,
@@ -145,12 +153,21 @@ def build(input_reader_config,
   decoder = tf_sequence_example_decoder.TFSequenceExampleDecoder()
 
   keys_to_decode = [
-      fields.InputDataFields.image, fields.InputDataFields.groundtruth_boxes,
+      "image_path", fields.InputDataFields.groundtruth_boxes,
       fields.InputDataFields.groundtruth_classes
   ]
   tensor_dict = decoder.decode(value, items=keys_to_decode)
 
-  tensor_dict['image'].set_shape([None, None, None, 3])
+  # bjenei: read image paths to images into shape (video_size,h,w)
+  image_paths = tf.split(tensor_dict['image_path'], config.video_length, axis=0)
+  images = []
+  for index, image_path in enumerate(image_paths):
+    image = tf.image.decode_jpeg(
+      tf.read_file(tf.squeeze(image_path)), channels=3)
+    image = tf.expand_dims(image, 0)
+    images.append(image)
+
+  tensor_dict['image'] = tf.concat(images, axis=0)
   tensor_dict['groundtruth_boxes'].set_shape([None, None, 4])
 
   height = model_config.ssd.image_resizer.fixed_shape_resizer.height

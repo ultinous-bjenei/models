@@ -107,7 +107,7 @@ class TFSequenceExampleDecoder(data_decoder.DataDecoder):
             tf.FixedLenFeature((), tf.int64, 1),
     }
     self.keys_to_features = {
-        'image/encoded': tf.FixedLenSequenceFeature((), tf.string),
+        'image/path': tf.FixedLenSequenceFeature((), tf.string),
         'bbox/xmin': tf.VarLenFeature(dtype=tf.float32),
         'bbox/xmax': tf.VarLenFeature(dtype=tf.float32),
         'bbox/ymin': tf.VarLenFeature(dtype=tf.float32),
@@ -120,12 +120,8 @@ class TFSequenceExampleDecoder(data_decoder.DataDecoder):
         'group_of': tf.VarLenFeature(tf.int64),
     }
     self.items_to_handlers = {
-        fields.InputDataFields.image:
-            tfexample_decoder.Image(
-                image_key='image/encoded',
-                format_key='image/format',
-                channels=3,
-                repeated=True),
+        "image_path": (
+            tfexample_decoder.Tensor('image/path')),
         fields.InputDataFields.source_id: (
             tfexample_decoder.Tensor('image/source_id')),
         fields.InputDataFields.key: (
